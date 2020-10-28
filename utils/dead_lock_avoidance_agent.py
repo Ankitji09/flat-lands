@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnv, RailEnvActions, fast_count_nonzero
 
+from reinforcement_learning.dddqn_policy import ReplayBuffer
 from reinforcement_learning.policy import Policy
 from utils.shortest_Distance_walker import ShortestDistanceWalker
 
@@ -51,22 +53,24 @@ class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
 
 
 class DeadLockAvoidanceAgent(Policy):
-    def __init__(self, env: RailEnv, state_size, action_size, show_debug_plot=False):
+    def __init__(self, env: RailEnv, show_debug_plot=False):
         self.env = env
-        self.action_size = action_size
-        self.state_size = state_size
-        self.memory = []
+        self.memory = None
         self.loss = 0
         self.agent_can_move = {}
         self.switches = {}
         self.show_debug_plot = show_debug_plot
+        self.active_agent = 0
 
-    def step(self, handle, state, action, reward, next_state, done):
+    def step(self, state, action, reward, next_state, done):
         pass
 
-    def act(self, handle, state, eps=0.):
-        # agent = self.env.agents[handle]
-        check = self.agent_can_move.get(handle, None)
+    def set_agent_active(self, handle):
+        self.active_agent = handle
+
+    def act(self, state, eps=0.):
+        # agent = self.env.agents[self.active_agent]
+        check = self.agent_can_move.get(self.active_agent, None)
         if check is None:
             return RailEnvActions.STOP_MOVING
         return check[3]
@@ -151,3 +155,9 @@ class DeadLockAvoidanceAgent(Policy):
             if (np.sum(delta) < 2 + len(opp_agents)):
                 next_step_ok = False
         return next_step_ok
+
+    def save(self, filename):
+        pass
+
+    def load(self, filename):
+        pass

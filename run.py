@@ -1,11 +1,9 @@
-import os
 import sys
 import time
 from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
-import torch
 from flatland.core.env_observation_builder import DummyObservationBuilder
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.evaluators.client import TimeoutException
@@ -25,7 +23,7 @@ from reinforcement_learning.dddqn_policy import DDDQNPolicy
 VERBOSE = True
 
 # Checkpoint to use (remember to push it!)
-checkpoint = "checkpoints/201028145909-2300.pth"
+checkpoint = "checkpoints/201028145909-2500.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True
@@ -112,7 +110,9 @@ while True:
             if not check_if_all_blocked(env=local_env):
                 time_start = time.time()
                 action_dict = {}
+                policy.start_step()
                 for agent in range(nb_agents):
+                    policy.set_agent_active(agent)
                     if info['action_required'][agent]:
                         if agent in agent_last_obs and np.all(agent_last_obs[agent] == observation[agent]):
                             # cache hit
@@ -126,6 +126,7 @@ while True:
                         if USE_ACTION_CACHE:
                             agent_last_obs[agent] = observation[agent]
                             agent_last_action[agent] = action
+                policy.end_step()
                 agent_time = time.time() - time_start
                 time_taken_by_controller.append(agent_time)
 
@@ -150,16 +151,17 @@ while True:
             nb_agents_done = sum(done[idx] for idx in local_env.get_agent_handles())
 
             if VERBOSE or done['__all__']:
-                print("Step {}/{}\tAgents done: {}\t Obs time {:.3f}s\t Inference time {:.5f}s\t Step time {:.3f}s\t Cache hits {}\t No-ops? {}".format(
-                    str(steps).zfill(4),
-                    max_nb_steps,
-                    nb_agents_done,
-                    obs_time,
-                    agent_time,
-                    step_time,
-                    nb_hit,
-                    no_ops_mode
-                ), end="\r")
+                print(
+                    "Step {}/{}\tAgents done: {}\t Obs time {:.3f}s\t Inference time {:.5f}s\t Step time {:.3f}s\t Cache hits {}\t No-ops? {}".format(
+                        str(steps).zfill(4),
+                        max_nb_steps,
+                        nb_agents_done,
+                        obs_time,
+                        agent_time,
+                        step_time,
+                        nb_hit,
+                        no_ops_mode
+                    ), end="\r")
 
             if done['__all__']:
                 # When done['__all__'] == True, then the evaluation of this
@@ -177,7 +179,8 @@ while True:
 
     np_time_taken_by_controller = np.array(time_taken_by_controller)
     np_time_taken_per_step = np.array(time_taken_per_step)
-    print("Mean/Std of Time taken by Controller : ", np_time_taken_by_controller.mean(), np_time_taken_by_controller.std())
+    print("Mean/Std of Time taken by Controller : ", np_time_taken_by_controller.mean(),
+          np_time_taken_by_controller.std())
     print("Mean/Std of Time per Step : ", np_time_taken_per_step.mean(), np_time_taken_per_step.std())
     print("=" * 100)
 

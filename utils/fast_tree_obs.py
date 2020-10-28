@@ -34,7 +34,7 @@ class FastTreeObs(ObservationBuilder):
         self.debug_render_path_list = []
         if self.env is not None:
             self.find_all_cell_where_agent_can_choose()
-            self.dead_lock_avoidance_agent = DeadLockAvoidanceAgent(self.env, None, None)
+            self.dead_lock_avoidance_agent = DeadLockAvoidanceAgent(self.env)
         else:
             self.dead_lock_avoidance_agent = None
 
@@ -301,7 +301,7 @@ class FastTreeObs(ObservationBuilder):
         observation[8] = int(agents_near_to_switch)
         observation[9] = int(agents_near_to_switch_all)
 
-        a = self.dead_lock_avoidance_agent.act(handle, None, None)
+        a = self.dead_lock_avoidance_agent.act(handle, 0.0)
         observation[26] = int(a == RailEnvActions.STOP_MOVING)
 
         self.env.dev_obs_dict.update({handle: visited})

@@ -10,3 +10,12 @@ class Policy:
 
     def load(self, filename):
         raise NotImplementedError
+
+    def start_step(self):
+        pass
+
+    def end_step(self):
+        pass
+
+    def set_agent_active(self,handle):
+        pass

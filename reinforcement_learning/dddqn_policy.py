@@ -43,7 +43,8 @@ class DDDQNPolicy(Policy):
             # print("🐢 Using CPU")
 
         # Q-Network
-        self.qnetwork_local = DuelingQNetwork(state_size, action_size, hidsize1=self.hidsize, hidsize2=self.hidsize).to(self.device)
+        self.qnetwork_local = DuelingQNetwork(state_size, action_size, hidsize1=self.hidsize, hidsize2=self.hidsize).to(
+            self.device)
         self.qnetwork_target = None
 
         if not evaluation_mode:
@@ -125,7 +126,8 @@ class DDDQNPolicy(Policy):
             if self.qnetwork_target is not None:
                 self.qnetwork_target.load_state_dict(torch.load(filename + ".target"))
         else:
-            raise FileNotFoundError("Couldn't load policy from: '{}', '{}'".format(filename + ".local", filename + ".target"))
+            raise FileNotFoundError(
+                "Couldn't load policy from: '{}', '{}'".format(filename + ".local", filename + ".target"))
 
     def save_replay_buffer(self, filename):
         memory = self.memory.memory

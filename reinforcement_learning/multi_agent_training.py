@@ -18,6 +18,8 @@ from flatland.envs.schedule_generators import sparse_schedule_generator
 from flatland.utils.rendertools import RenderTool
 from torch.utils.tensorboard import SummaryWriter
 
+from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent
+
 base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
 
@@ -178,6 +180,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
 
     # Double Dueling DQN policy
     policy = DDDQNPolicy(state_size, action_size, train_params)
+    policy = DeadLockAvoidanceAgent(train_env)
 
     # Load existing policy
     if train_params.load_policy is not "":
@@ -193,7 +196,9 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
             print(e)
             exit(1)
 
-    print("\n💾 Replay buffer status: {}/{} experiences".format(len(policy.memory.memory), train_params.buffer_size))
+    if policy.memory is not None:
+        print(
+            "\n💾 Replay buffer status: {}/{} experiences".format(len(policy.memory.memory), train_params.buffer_size))
 
     hdd = psutil.disk_usage('/')
     if save_replay_buffer and (hdd.free / (2 ** 30)) < 500.0:
@@ -203,9 +208,9 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
 
     # TensorBoard writer
     writer = SummaryWriter()
-    writer.add_hparams(vars(train_params), {})
-    writer.add_hparams(vars(train_env_params), {})
-    writer.add_hparams(vars(obs_params), {})
+    # writer.add_hparams(vars(train_params), {})
+    # writer.add_hparams(vars(train_env_params), {})
+    # writer.add_hparams(vars(obs_params), {})
 
     training_timer = Timer()
     training_timer.start()
@@ -249,7 +254,9 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         # Run episode
         for step in range(max_steps - 1):
             inference_timer.start()
+            policy.start_step()
             for agent in train_env.get_agent_handles():
+                policy.set_agent_active(agent)
                 if info['action_required'][agent]:
                     update_values[agent] = True
 
@@ -263,6 +270,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                     update_values[agent] = False
                     action = 0
                 action_dict.update({agent: action})
+            policy.end_step()
             inference_timer.end()
 
             # Environment step
@@ -284,6 +292,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                 if update_values[agent] or done['__all__']:
                     # Only learn from timesteps where somethings happened
                     learn_timer.start()
+                    policy.set_agent_active(agent)
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], agent_obs[agent],
                                 done[agent])
                     learn_timer.end()
@@ -394,7 +403,8 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         writer.add_scalar("actions/right", action_probs[RailEnvActions.MOVE_RIGHT], episode_idx)
         writer.add_scalar("actions/stop", action_probs[RailEnvActions.STOP_MOVING], episode_idx)
         writer.add_scalar("training/epsilon", eps_start, episode_idx)
-        writer.add_scalar("training/buffer_size", len(policy.memory), episode_idx)
+        if policy.memory is not None:
+            writer.add_scalar("training/buffer_size", len(policy.memory), episode_idx)
         writer.add_scalar("training/loss", policy.loss, episode_idx)
         writer.add_scalar("timer/reset", reset_timer.get(), episode_idx)
         writer.add_scalar("timer/step", step_timer.get(), episode_idx)
@@ -434,7 +444,9 @@ def eval_policy(env, tree_observation, policy, train_params, obs_params):
         final_step = 0
 
         for step in range(max_steps - 1):
+            policy.start_step()
             for agent in env.get_agent_handles():
+                policy.set_agent_active(agent)
                 if tree_observation.check_is_observation_valid(agent_obs[agent]):
                     agent_obs[agent] = tree_observation.get_normalized_observation(obs[agent], tree_depth=tree_depth,
                                                                                    observation_radius=observation_radius)
@@ -444,6 +456,7 @@ def eval_policy(env, tree_observation, policy, train_params, obs_params):
                     if tree_observation.check_is_observation_valid(agent_obs[agent]):
                         action = policy.act(agent_obs[agent], eps=0.0)
                 action_dict.update({agent: action})
+            policy.end_step()
 
             obs, all_rewards, done, info = env.step(action_dict)
 
