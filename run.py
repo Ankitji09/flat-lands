@@ -25,7 +25,7 @@ from reinforcement_learning.dddqn_policy import DDDQNPolicy
 VERBOSE = True
 
 # Checkpoint to use (remember to push it!)
-checkpoint = "checkpoints/201028140645-1300.pth"
+checkpoint = "checkpoints/201028145909-2300.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True
