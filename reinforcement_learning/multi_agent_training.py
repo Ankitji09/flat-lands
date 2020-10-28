@@ -1,23 +1,22 @@
-from datetime import datetime
 import os
 import random
 import sys
 from argparse import ArgumentParser, Namespace
+from collections import deque
+from datetime import datetime
 from pathlib import Path
 from pprint import pprint
-import psutil
-from flatland.utils.rendertools import RenderTool
-from torch.utils.tensorboard import SummaryWriter
-import numpy as np
-import torch
-from collections import deque
 
+import numpy as np
+import psutil
+from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
+from flatland.envs.observations import TreeObsForRailEnv
+from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
-from flatland.envs.observations import TreeObsForRailEnv
-from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
-from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from flatland.utils.rendertools import RenderTool
+from torch.utils.tensorboard import SummaryWriter
 
 base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
@@ -285,7 +284,8 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                 if update_values[agent] or done['__all__']:
                     # Only learn from timesteps where somethings happened
                     learn_timer.start()
-                    policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], agent_obs[agent], done[agent])
+                    policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], agent_obs[agent],
+                                done[agent])
                     learn_timer.end()
 
                     agent_prev_obs[agent] = agent_obs[agent].copy()
@@ -322,7 +322,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
 
         # Print logs
         if episode_idx % checkpoint_interval == 0:
-            torch.save(policy.qnetwork_local, './checkpoints/' + training_id + '-' + str(episode_idx) + '.pth')
+            policy.save('./checkpoints/' + training_id + '-' + str(episode_idx) + '.pth')
 
             if save_replay_buffer:
                 policy.save_replay_buffer('./replay_buffers/' + training_id + '-' + str(episode_idx) + '.pkl')
@@ -495,7 +495,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_threads", help="number of threads PyTorch can use", default=1, type=int)
     parser.add_argument("--render", help="render 1 episode in 100", action='store_true')
     parser.add_argument("--load_policy", help="policy filename (reference) to load", default="", type=str)
-    parser.add_argument("--use_fast_tree_observation", help="use FastTreeObs instead of stock TreeObs", action='store_true')
+    parser.add_argument("--use_fast_tree_observation", help="use FastTreeObs instead of stock TreeObs",
+                        action='store_true')
     parser.add_argument("--max_depth", help="max depth", default=2, type=int)
 
     training_params = parser.parse_args()

@@ -13,8 +13,8 @@ The observation can be used freely and reused for further submissions. Only the 
 
 Author: Adrian Egli (adrian.egli@gmail.com)
 
-[Linkedin](https://www.researchgate.net/profile/Adrian_Egli2)
-[Researchgate](https://www.linkedin.com/in/adrian-egli-733a9544/)
+[Linkedin](https://www.linkedin.com/in/adrian-egli-733a9544/)
+[Researchgate](https://www.researchgate.net/profile/Adrian_Egli2)
 """
 
 class FastTreeObs(ObservationBuilder):

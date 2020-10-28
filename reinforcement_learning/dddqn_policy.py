@@ -22,7 +22,7 @@ class DDDQNPolicy(Policy):
         self.state_size = state_size
         self.action_size = action_size
         self.double_dqn = True
-        self.hidsize = 1
+        self.hidsize = 128
 
         if not evaluation_mode:
             self.hidsize = parameters.hidden_size
@@ -44,6 +44,7 @@ class DDDQNPolicy(Policy):
 
         # Q-Network
         self.qnetwork_local = DuelingQNetwork(state_size, action_size, hidsize1=self.hidsize, hidsize2=self.hidsize).to(self.device)
+        self.qnetwork_target = None
 
         if not evaluation_mode:
             self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
@@ -121,7 +122,8 @@ class DDDQNPolicy(Policy):
     def load(self, filename):
         if os.path.exists(filename + ".local") and os.path.exists(filename + ".target"):
             self.qnetwork_local.load_state_dict(torch.load(filename + ".local"))
-            self.qnetwork_target.load_state_dict(torch.load(filename + ".target"))
+            if self.qnetwork_target is not None:
+                self.qnetwork_target.load_state_dict(torch.load(filename + ".target"))
         else:
             raise FileNotFoundError("Couldn't load policy from: '{}', '{}'".format(filename + ".local", filename + ".target"))
 

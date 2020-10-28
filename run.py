@@ -1,25 +1,22 @@
 import os
 import sys
+import time
 from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
-import time
-
 import torch
 from flatland.core.env_observation_builder import DummyObservationBuilder
-from flatland.envs.observations import TreeObsForRailEnv
 from flatland.evaluators.client import FlatlandRemoteClient
-from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.evaluators.client import TimeoutException
 
 from utils.deadlock_check import check_if_all_blocked
+from utils.fast_tree_obs import FastTreeObs
 
 base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
-from utils.observation_utils import normalize_observation
 
 ####################################################
 # EVALUATION PARAMETERS
@@ -28,36 +25,28 @@ from utils.observation_utils import normalize_observation
 VERBOSE = True
 
 # Checkpoint to use (remember to push it!)
-checkpoint = "checkpoints/201014015722-1500.pth"
+checkpoint = "checkpoints/201028140645-1300.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True
 
 # Observation parameters (must match training parameters!)
 observation_tree_depth = 2
-observation_radius = 10
-observation_max_path_depth = 30
 
 ####################################################
 
 remote_client = FlatlandRemoteClient()
 
 # Observation builder
-predictor = ShortestPathPredictorForRailEnv(observation_max_path_depth)
-tree_observation = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
+tree_observation = FastTreeObs(max_depth=observation_tree_depth)
 
 # Calculates state and action sizes
-n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
-state_size = tree_observation.observation_dim * n_nodes
+state_size = tree_observation.observation_dim
 action_size = 5
 
 # Creates the policy. No GPU on evaluation server.
 policy = DDDQNPolicy(state_size, action_size, Namespace(**{'use_gpu': False}), evaluation_mode=True)
-
-if os.path.isfile(checkpoint):
-    policy.qnetwork_local = torch.load(checkpoint)
-else:
-    print("Checkpoint not found, using untrained policy! (path: {})".format(checkpoint))
+policy.load(checkpoint)
 
 #####################################################################
 # Main evaluation loop
@@ -124,15 +113,13 @@ while True:
                 time_start = time.time()
                 action_dict = {}
                 for agent in range(nb_agents):
-                    if observation[agent] and info['action_required'][agent]:
+                    if info['action_required'][agent]:
                         if agent in agent_last_obs and np.all(agent_last_obs[agent] == observation[agent]):
                             # cache hit
                             action = agent_last_action[agent]
                             nb_hit += 1
                         else:
-                            # otherwise, run normalization and inference
-                            norm_obs = normalize_observation(observation[agent], tree_depth=observation_tree_depth, observation_radius=observation_radius)
-                            action = policy.act(norm_obs, eps=0.0)
+                            action = policy.act(observation[agent], eps=0.0)
 
                         action_dict[agent] = action
 
