@@ -3,3 +3,9 @@ git
 vim
 ssh
 gcc
+python-cairo-dev
+cmake
+python-dev
+build-essential
+libboost-python-dev
+libboost-all-dev
