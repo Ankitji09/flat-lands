@@ -8,6 +8,7 @@ from flatland.core.env_observation_builder import DummyObservationBuilder
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.evaluators.client import TimeoutException
 
+from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent
 from utils.deadlock_check import check_if_all_blocked
 from utils.fast_tree_obs import FastTreeObs
 
@@ -15,6 +16,17 @@ base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
+from typing import Optional, List
+
+
+class MyDummyObservationBuilder(DummyObservationBuilder):
+    def __init__(self):
+        self.counter = 0
+
+    def get_many(self, handles: Optional[List[int]] = None) -> bool:
+        self.counter += 1
+        return np.ones(len(handles)) * self.counter
+
 
 ####################################################
 # EVALUATION PARAMETERS
@@ -44,8 +56,10 @@ action_size = 5
 
 # Creates the policy. No GPU on evaluation server.
 policy = DDDQNPolicy(state_size, action_size, Namespace(**{'use_gpu': False}), evaluation_mode=True)
-policy.load(checkpoint)
-
+try:
+    policy.load(checkpoint)
+except:
+    print("Policy not loaded!")
 #####################################################################
 # Main evaluation loop
 #####################################################################
@@ -74,13 +88,17 @@ while True:
     print("Env Creation Time : ", env_creation_time)
 
     local_env = remote_client.env
+
+    policy = DeadLockAvoidanceAgent(local_env)
+    tree_observation = MyDummyObservationBuilder()
+
     nb_agents = len(local_env.agents)
     max_nb_steps = local_env._max_episode_steps
 
     tree_observation.set_env(local_env)
     tree_observation.reset()
     observation = tree_observation.get_many(list(range(nb_agents)))
-
+    print(observation)
     print("Evaluation {}: {} agents in {}x{}".format(evaluation_number, nb_agents, local_env.width, local_env.height))
 
     # Now we enter into another infinite loop where we
