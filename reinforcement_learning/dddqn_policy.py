@@ -123,8 +123,11 @@ class DDDQNPolicy(Policy):
     def load(self, filename):
         if os.path.exists(filename + ".local") and os.path.exists(filename + ".target"):
             self.qnetwork_local.load_state_dict(torch.load(filename + ".local"))
+            print(filename+ ".local", 'loaded.')
             if self.qnetwork_target is not None:
                 self.qnetwork_target.load_state_dict(torch.load(filename + ".target"))
+            print(filename+ ".target", 'loaded.')
+
         else:
             raise FileNotFoundError(
                 "Couldn't load policy from: '{}', '{}'".format(filename + ".local", filename + ".target"))
