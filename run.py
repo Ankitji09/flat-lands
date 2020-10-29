@@ -8,7 +8,7 @@ from flatland.core.env_observation_builder import DummyObservationBuilder
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.evaluators.client import TimeoutException
 
-from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent
+from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent, DeadlockAvoidanceObservation
 from utils.deadlock_check import check_if_all_blocked
 from utils.fast_tree_obs import FastTreeObs
 
@@ -16,17 +16,6 @@ base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
-from typing import Optional, List
-
-
-class MyDummyObservationBuilder(DummyObservationBuilder):
-    def __init__(self):
-        self.counter = 0
-
-    def get_many(self, handles: Optional[List[int]] = None) -> bool:
-        self.counter += 1
-        return np.ones(len(handles)) * self.counter
-
 
 ####################################################
 # EVALUATION PARAMETERS
@@ -90,7 +79,7 @@ while True:
     local_env = remote_client.env
 
     policy = DeadLockAvoidanceAgent(local_env)
-    tree_observation = MyDummyObservationBuilder()
+    tree_observation = DeadlockAvoidanceObservation()
 
     nb_agents = len(local_env.agents)
     max_nb_steps = local_env._max_episode_steps
@@ -130,7 +119,6 @@ while True:
                 action_dict = {}
                 policy.start_step()
                 for agent in range(nb_agents):
-                    policy.set_agent_active(agent)
                     if info['action_required'][agent]:
                         if agent in agent_last_obs and np.all(agent_last_obs[agent] == observation[agent]):
                             # cache hit

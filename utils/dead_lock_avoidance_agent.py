@@ -1,12 +1,26 @@
+from typing import Optional, List
+
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
+from flatland.core.env_observation_builder import DummyObservationBuilder
 from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnv, RailEnvActions, fast_count_nonzero
 
-from reinforcement_learning.dddqn_policy import ReplayBuffer
 from reinforcement_learning.policy import Policy
 from utils.shortest_Distance_walker import ShortestDistanceWalker
+
+
+class DeadlockAvoidanceObservation(DummyObservationBuilder):
+    def __init__(self):
+        self.counter = 0
+
+    def get_many(self, handles: Optional[List[int]] = None) -> bool:
+        self.counter += 1
+        obs = np.ones(len(handles), 2)
+        for handle in handles:
+            obs[handle][0] = handle
+            obs[handle][1] = self.counter
+        return obs
 
 
 class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
@@ -60,17 +74,13 @@ class DeadLockAvoidanceAgent(Policy):
         self.agent_can_move = {}
         self.switches = {}
         self.show_debug_plot = show_debug_plot
-        self.active_agent = 0
 
     def step(self, state, action, reward, next_state, done):
         pass
 
-    def set_agent_active(self, handle):
-        self.active_agent = handle
-
     def act(self, state, eps=0.):
-        # agent = self.env.agents[self.active_agent]
-        check = self.agent_can_move.get(self.active_agent, None)
+        # agent = self.env.agents[state[0]]
+        check = self.agent_can_move.get(state[0], None)
         if check is None:
             return RailEnvActions.STOP_MOVING
         return check[3]
@@ -127,6 +137,7 @@ class DeadLockAvoidanceAgent(Policy):
             agent = self.env.agents[handle]
             if agent.status < RailAgentStatus.DONE:
                 next_step_ok = self.check_agent_can_move(shortest_distance_agent_map[handle],
+                                                         self.shortest_distance_walker.same_agent_map.get(handle, []),
                                                          self.shortest_distance_walker.opp_agent_map.get(handle, []),
                                                          full_shortest_distance_agent_map)
                 if next_step_ok:
@@ -144,6 +155,7 @@ class DeadLockAvoidanceAgent(Policy):
 
     def check_agent_can_move(self,
                              my_shortest_walking_path,
+                             same_agents,
                              opp_agents,
                              full_shortest_distance_agent_map):
         agent_positions_map = (self.agent_positions > -1).astype(int)
@@ -151,8 +163,8 @@ class DeadLockAvoidanceAgent(Policy):
         next_step_ok = True
         for opp_a in opp_agents:
             opp = full_shortest_distance_agent_map[opp_a]
-            delta = ((delta - opp - agent_positions_map) > 0).astype(int)
-            if (np.sum(delta) < 3 + len(opp_agents)):
+            delta = ((my_shortest_walking_path - opp - agent_positions_map) > 0).astype(int)
+            if (np.sum(delta) < 3 + (len(opp_agents))):
                 next_step_ok = False
         return next_step_ok
 

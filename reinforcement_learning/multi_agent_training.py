@@ -180,7 +180,6 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
 
     # Double Dueling DQN policy
     policy = DDDQNPolicy(state_size, action_size, train_params)
-    policy = DeadLockAvoidanceAgent(train_env)
 
     # Load existing policy
     if train_params.load_policy is not "":
@@ -256,7 +255,6 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
             inference_timer.start()
             policy.start_step()
             for agent in train_env.get_agent_handles():
-                policy.set_agent_active(agent)
                 if info['action_required'][agent]:
                     update_values[agent] = True
 
@@ -292,7 +290,6 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                 if update_values[agent] or done['__all__']:
                     # Only learn from timesteps where somethings happened
                     learn_timer.start()
-                    policy.set_agent_active(agent)
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], agent_obs[agent],
                                 done[agent])
                     learn_timer.end()
@@ -446,7 +443,6 @@ def eval_policy(env, tree_observation, policy, train_params, obs_params):
         for step in range(max_steps - 1):
             policy.start_step()
             for agent in env.get_agent_handles():
-                policy.set_agent_active(agent)
                 if tree_observation.check_is_observation_valid(agent_obs[agent]):
                     agent_obs[agent] = tree_observation.get_normalized_observation(obs[agent], tree_depth=tree_depth,
                                                                                    observation_radius=observation_radius)

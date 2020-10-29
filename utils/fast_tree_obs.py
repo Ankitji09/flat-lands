@@ -301,7 +301,7 @@ class FastTreeObs(ObservationBuilder):
         observation[8] = int(agents_near_to_switch)
         observation[9] = int(agents_near_to_switch_all)
 
-        a = self.dead_lock_avoidance_agent.act(handle, 0.0)
+        a = self.dead_lock_avoidance_agent.act([handle], 0.0)
         observation[26] = int(a == RailEnvActions.STOP_MOVING)
 
         self.env.dev_obs_dict.update({handle: visited})

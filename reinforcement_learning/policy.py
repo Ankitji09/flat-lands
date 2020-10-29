@@ -17,5 +17,3 @@ class Policy:
     def end_step(self):
         pass
 
-    def set_agent_active(self,handle):
-        pass
