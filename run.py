@@ -23,6 +23,9 @@ from reinforcement_learning.dddqn_policy import DDDQNPolicy
 # Print per-step logs
 VERBOSE = True
 
+USE_DEAD_LOCK_AVOIDANCE_AGENT = True
+
+
 # Checkpoint to use (remember to push it!)
 checkpoint = "checkpoints/201028145909-2500.pth"
 
@@ -78,8 +81,9 @@ while True:
 
     local_env = remote_client.env
 
-    policy = DeadLockAvoidanceAgent(local_env)
-    tree_observation = DeadlockAvoidanceObservation()
+    if USE_DEAD_LOCK_AVOIDANCE_AGENT:
+        policy = DeadLockAvoidanceAgent(local_env)
+        tree_observation = DeadlockAvoidanceObservation()
 
     nb_agents = len(local_env.agents)
     max_nb_steps = local_env._max_episode_steps
