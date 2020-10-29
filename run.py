@@ -8,6 +8,7 @@ from flatland.core.env_observation_builder import DummyObservationBuilder
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.evaluators.client import TimeoutException
 
+from reinforcement_learning.multi_policy import MultiPolicy
 from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent, DeadlockAvoidanceObservation
 from utils.deadlock_check import check_if_all_blocked
 from utils.fast_tree_obs import FastTreeObs
@@ -15,19 +16,16 @@ from utils.fast_tree_obs import FastTreeObs
 base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
 
-from reinforcement_learning.dddqn_policy import DDDQNPolicy
-
 ####################################################
 # EVALUATION PARAMETERS
 
 # Print per-step logs
 VERBOSE = True
 
-USE_DEAD_LOCK_AVOIDANCE_AGENT = True
-
+USE_DEAD_LOCK_AVOIDANCE_AGENT = False
 
 # Checkpoint to use (remember to push it!)
-checkpoint = "checkpoints/201028145909-2500.pth"
+checkpoint = "checkpoints/201029102642-2500.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True
@@ -47,7 +45,7 @@ state_size = tree_observation.observation_dim
 action_size = 5
 
 # Creates the policy. No GPU on evaluation server.
-policy = DDDQNPolicy(state_size, action_size, Namespace(**{'use_gpu': False}), evaluation_mode=True)
+policy = MultiPolicy(state_size, action_size, Namespace(**{'use_gpu': False}), evaluation_mode=True)
 try:
     policy.load(checkpoint)
 except:
@@ -84,6 +82,8 @@ while True:
     if USE_DEAD_LOCK_AVOIDANCE_AGENT:
         policy = DeadLockAvoidanceAgent(local_env)
         tree_observation = DeadlockAvoidanceObservation()
+    else:
+        policy.set_rail_env(local_env)
 
     nb_agents = len(local_env.agents)
     max_nb_steps = local_env._max_episode_steps
@@ -91,7 +91,6 @@ while True:
     tree_observation.set_env(local_env)
     tree_observation.reset()
     observation = tree_observation.get_many(list(range(nb_agents)))
-    print(observation)
     print("Evaluation {}: {} agents in {}x{}".format(evaluation_number, nb_agents, local_env.width, local_env.height))
 
     # Now we enter into another infinite loop where we
@@ -129,7 +128,7 @@ while True:
                             action = agent_last_action[agent]
                             nb_hit += 1
                         else:
-                            action = policy.act(observation[agent], eps=0.0)
+                            action = policy.act(agent, observation[agent], eps=0.0)
 
                         action_dict[agent] = action
 

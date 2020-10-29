@@ -18,7 +18,7 @@ from flatland.envs.schedule_generators import sparse_schedule_generator
 from flatland.utils.rendertools import RenderTool
 from torch.utils.tensorboard import SummaryWriter
 
-from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent
+from reinforcement_learning.multi_policy import MultiPolicy
 
 base_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(base_dir))
@@ -26,7 +26,6 @@ sys.path.append(str(base_dir))
 from utils.timer import Timer
 from utils.observation_utils import normalize_observation
 from utils.fast_tree_obs import FastTreeObs
-from reinforcement_learning.dddqn_policy import DDDQNPolicy
 
 try:
     import wandb
@@ -179,7 +178,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
     completion_window = deque(maxlen=checkpoint_interval)
 
     # Double Dueling DQN policy
-    policy = DDDQNPolicy(state_size, action_size, train_params)
+    policy = MultiPolicy(state_size, action_size, train_params)
 
     # Load existing policy
     if train_params.load_policy is not "":
@@ -234,6 +233,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         # Reset environment
         reset_timer.start()
         obs, info = train_env.reset(regenerate_rail=True, regenerate_schedule=True)
+        policy.set_rail_env(train_env)
         reset_timer.end()
 
         if train_params.render:
@@ -258,7 +258,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                 if info['action_required'][agent]:
                     update_values[agent] = True
 
-                    action = policy.act(agent_obs[agent], eps=eps_start)
+                    action = policy.act(agent, agent_obs[agent], eps=eps_start)
 
                     action_count[action] += 1
                     actions_taken.append(action)
@@ -277,7 +277,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
             step_timer.end()
 
             # Render an episode at some interval
-            if train_params.render and episode_idx % checkpoint_interval == 0:
+            if train_params.render:  # and episode_idx % checkpoint_interval == 0:
                 env_renderer.render_env(
                     show=True,
                     frames=False,
@@ -437,6 +437,7 @@ def eval_policy(env, tree_observation, policy, train_params, obs_params):
         score = 0.0
 
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
+        policy.set_rail_env(env)
 
         final_step = 0
 
@@ -450,7 +451,7 @@ def eval_policy(env, tree_observation, policy, train_params, obs_params):
                 action = 0
                 if info['action_required'][agent]:
                     if tree_observation.check_is_observation_valid(agent_obs[agent]):
-                        action = policy.act(agent_obs[agent], eps=0.0)
+                        action = policy.act(agent, agent_obs[agent], eps=0.0)
                 action_dict.update({agent: action})
             policy.end_step()
 
