@@ -121,6 +121,7 @@ class DDDQNPolicy(Policy):
         torch.save(self.qnetwork_target.state_dict(), filename + ".target")
 
     def load(self, filename):
+        print("try to load policy: ",filename)
         if os.path.exists(filename + ".local") and os.path.exists(filename + ".target"):
             self.qnetwork_local.load_state_dict(torch.load(filename + ".local"))
             print(filename+ ".local", 'loaded.')

@@ -25,7 +25,7 @@ VERBOSE = True
 USE_DEAD_LOCK_AVOIDANCE_AGENT = False
 
 # Checkpoint to use (remember to push it!)
-checkpoint = "checkpoints/201029142440-2500.pth.local"
+checkpoint = "./checkpoints/201029142440-2500.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True
