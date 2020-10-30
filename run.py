@@ -25,7 +25,18 @@ VERBOSE = True
 USE_DEAD_LOCK_AVOIDANCE_AGENT = False
 
 # Checkpoint to use (remember to push it!)
-checkpoint = "./checkpoints/201029142440-2500.pth"
+
+####################################################################################################
+#
+# Mean Reward : -5332.57
+# Sum Normalized Reward : 19.97928815947198 (primary score)
+# Mean Percentage Complete : 0.716 (secondary score)
+# Mean Normalized Reward : 0.66598
+#
+# checkpoint = "./checkpoints/201029142440-2500.pth"
+#
+####################################################################################################
+checkpoint = "./checkpoints/201030103253-2500.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True

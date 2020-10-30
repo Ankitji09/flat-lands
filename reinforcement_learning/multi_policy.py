@@ -1,3 +1,4 @@
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnvActions
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
@@ -14,10 +15,12 @@ class MultiPolicy(DDDQNPolicy):
         self.dead_lock_avoidance_agent.reset()
 
     def act(self, handle, state, eps=0.):
-        action = super().act(state, eps)
-        action_dlaa = self.dead_lock_avoidance_agent.act([handle], eps)
-        if action_dlaa == RailEnvActions.STOP_MOVING:
+        agent = self.dead_lock_avoidance_agent.env.agents[handle]
+        if agent.status < RailAgentStatus.ACTIVE:
+            action_dlaa = self.dead_lock_avoidance_agent.act([handle], eps)
+            #if action_dlaa == RailEnvActions.STOP_MOVING:
             return action_dlaa
+        action = super().act(state, eps)
         return action
 
     def start_step(self):
