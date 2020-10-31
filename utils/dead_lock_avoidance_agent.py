@@ -164,7 +164,7 @@ class DeadLockAvoidanceAgent(Policy):
         for opp_a in opp_agents:
             opp = full_shortest_distance_agent_map[opp_a]
             delta = ((my_shortest_walking_path - opp - agent_positions_map) > 0).astype(int)
-            if np.sum(delta) < 3:  # + (len(opp_agents))):
+            if np.sum(delta) < (3 + len(opp_agents)):
                 next_step_ok = False
         return next_step_ok
 

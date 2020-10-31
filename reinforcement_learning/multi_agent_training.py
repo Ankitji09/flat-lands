@@ -240,6 +240,8 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         for handle in range(train_env.get_num_agents()):
             if (episode_idx % n_agents + 1) < handle:
                 train_env.agents[handle].status = RailAgentStatus.DONE
+                info['action_required'][handle] = False
+                train_env.dones[handle] = True
 
         reset_timer.end()
 
@@ -488,14 +490,14 @@ def eval_policy(env, tree_observation, policy, train_params, obs_params):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("-n", "--n_episodes", help="number of episodes to run", default=2500, type=int)
-    parser.add_argument("-t", "--training_env_config", help="training config id (eg 0 for Test_0)", default=1, type=int)
+    parser.add_argument("-n", "--n_episodes", help="number of episodes to run", default=12500, type=int)
+    parser.add_argument("-t", "--training_env_config", help="training config id (eg 0 for Test_0)", default=2, type=int)
     parser.add_argument("-e", "--evaluation_env_config", help="evaluation config id (eg 0 for Test_0)", default=0,
                         type=int)
-    parser.add_argument("--n_evaluation_episodes", help="number of evaluation episodes", default=10, type=int)
+    parser.add_argument("--n_evaluation_episodes", help="number of evaluation episodes", default=5, type=int)
     parser.add_argument("--checkpoint_interval", help="checkpoint interval", default=100, type=int)
     parser.add_argument("--eps_start", help="max exploration", default=0.25, type=float)
-    parser.add_argument("--eps_end", help="min exploration", default=0.01, type=float)
+    parser.add_argument("--eps_end", help="min exploration", default=0.001, type=float)
     parser.add_argument("--eps_decay", help="exploration decay", default=0.9985, type=float)
     parser.add_argument("--buffer_size", help="replay buffer size", default=int(1e5), type=int)
     parser.add_argument("--buffer_min_size", help="min buffer size to start training", default=0, type=int)

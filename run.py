@@ -36,7 +36,7 @@ USE_DEAD_LOCK_AVOIDANCE_AGENT = False
 # checkpoint = "./checkpoints/201029142440-2500.pth"
 #
 ####################################################################################################
-checkpoint = "./checkpoints/201030103253-2500.pth"
+checkpoint = "./checkpoints/201030191036-8200.pth"
 
 # Use last action cache
 USE_ACTION_CACHE = True
