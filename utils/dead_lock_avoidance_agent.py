@@ -27,11 +27,16 @@ class DeadlockAvoidanceObservation(DummyObservationBuilder):
 class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
     def __init__(self, env: RailEnv, agent_positions, switches):
         super().__init__(env)
+        # shortest_distance_agent_map is represented as grid with 1 when the cell is part of the shortest path,
+        # 0 otherwise. It contains all cells on the along the shortest path except switch cells and all cell after
+        # the walker encounters an opposite agent - this means it's a sub path which is opposite agent free
         self.shortest_distance_agent_map = np.zeros((self.env.get_num_agents(),
                                                      self.env.height,
                                                      self.env.width),
                                                     dtype=int) - 1
 
+        # shortest_distance_agent_map is represented as grid with 1 when the cell is part of the shortest path,
+        # 0 otherwise. No cell where skipped.
         self.full_shortest_distance_agent_map = np.zeros((self.env.get_num_agents(),
                                                           self.env.height,
                                                           self.env.width),
@@ -189,7 +194,7 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         :param agents_path_map:
         :return: number of free cells
         '''
-        shortest_distance_agent_map, full_shortest_distance_agent_map = self.shortest_distance_walker.getData()
+        _, full_shortest_distance_agent_map = self.shortest_distance_walker.getData()
         opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
         return self.calculate_map_differences(agents_path_map,
                                               opp_agents,
