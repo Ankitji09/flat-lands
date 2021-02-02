@@ -66,6 +66,7 @@ class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
                 self.shortest_distance_agent_map[(handle, position[0], position[1])] = 1
         self.full_shortest_distance_agent_map[(handle, position[0], position[1])] = 1
 
+
 class DeadLockAvoidanceAgent(HeuristicPolicy):
     def __init__(self, env: RailEnv, action_size, enable_eps=False, show_debug_plot=False):
         print(">> DeadLockAvoidance")
@@ -117,8 +118,8 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
 
     def start_step(self, train):
         self.build_agent_position_map()
-        self.shortest_distance_mapper()
-        self.extract_agent_can_move()
+        self.generate_shortest_path_agent_walking_maps()
+        self.apply_deadlock_avoidance_heuristic(threshold=3, opp_agent_threshold_factor=1.0)
 
     def end_step(self, train):
         pass
@@ -135,7 +136,7 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
                 if agent.position is not None:
                     self.agent_positions[agent.position] = handle
 
-    def shortest_distance_mapper(self):
+    def generate_shortest_path_agent_walking_maps(self):
         self.shortest_distance_walker = DeadlockAvoidanceShortestDistanceWalker(self.env,
                                                                                 self.agent_positions,
                                                                                 self.switches)
@@ -144,20 +145,21 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
             if agent.status <= RailAgentStatus.ACTIVE:
                 self.shortest_distance_walker.walk_to_target(handle)
 
-    def extract_agent_can_move(self):
+    def apply_deadlock_avoidance_heuristic(self, threshold, opp_agent_threshold_factor=1.0):
         self.agent_can_move = {}
         shortest_distance_agent_map, full_shortest_distance_agent_map = self.shortest_distance_walker.getData()
         for handle in range(self.env.get_num_agents()):
             agent = self.env.agents[handle]
             if agent.status < RailAgentStatus.DONE:
-                next_step_ok = self.check_agent_can_move(handle,
-                                                         shortest_distance_agent_map[handle],
-                                                         self.shortest_distance_walker.same_agent_map.get(handle, []),
-                                                         self.shortest_distance_walker.opp_agent_map.get(handle, []),
+                opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
+                min_value = self.calculateMapDifferences(shortest_distance_agent_map[handle],
+                                                         opp_agents,
                                                          full_shortest_distance_agent_map)
-                if next_step_ok:
+
+                if min_value > (threshold + opp_agent_threshold_factor * len(opp_agents)):
                     next_position, next_direction, action, _ = self.shortest_distance_walker.walk_one_step(handle)
                     self.agent_can_move.update({handle: [next_position[0], next_position[1], next_direction, action]})
+                self.agent_can_move_value.update({handle: min_value})
 
         if self.show_debug_plot:
             a = np.floor(np.sqrt(self.env.get_num_agents()))
@@ -168,24 +170,17 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
             plt.show(block=False)
             plt.pause(0.01)
 
-    def check_agent_can_move(self,
-                             handle,
-                             my_shortest_walking_path,
-                             same_agents,
-                             opp_agents,
-                             full_shortest_distance_agent_map):
+    def calculateMapDifferences(self,
+                                my_shortest_walking_path,
+                                opp_agents,
+                                full_shortest_distance_agent_map):
         agent_positions_map = (self.agent_positions > -1).astype(int)
-        delta = my_shortest_walking_path
-        next_step_ok = True
+        min_value = np.inf
         for opp_a in opp_agents:
-            opp = full_shortest_distance_agent_map[opp_a]
-            delta = ((my_shortest_walking_path - opp - agent_positions_map) > 0).astype(int)
-            if np.sum(delta) < (3 + len(opp_agents)):
-                next_step_ok = False
-            v = self.agent_can_move_value.get(handle, np.inf)
-            v = min(v, np.sum(delta))
-            self.agent_can_move_value.update({handle: v})
-        return next_step_ok
+            opp_map = full_shortest_distance_agent_map[opp_a]
+            delta = ((my_shortest_walking_path - opp_map - agent_positions_map) > 0).astype(int)
+            min_value = min(min_value, np.sum(delta))
+        return min_value
 
     def save(self, filename):
         pass
