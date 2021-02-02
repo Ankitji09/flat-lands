@@ -81,9 +81,19 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         self.enable_eps = enable_eps
 
     def step(self, handle, state, action, reward, next_state, done):
+        '''
+        not used interface method
+        '''
         pass
 
     def act(self, handle, state, eps=0.):
+        '''
+        Estimates the next agents action
+        :param handle: agents reference
+        :param state: not used (just interface parameter)
+        :param eps: if eps enable the eps used for randomness
+        :return: action
+        '''
         # Epsilon-greedy action selection
         if self.enable_eps:
             if np.random.random() < eps:
@@ -97,9 +107,18 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         return map_rail_env_action(act)
 
     def get_agent_can_move_value(self, handle):
+        '''
+        Returns the stored free cell min value for given agent
+        :param handle: the handle to the agent
+        :return: cell free move value
+        '''
         return self.agent_can_move_value.get(handle, np.inf)
 
     def reset(self, env):
+        '''
+        Reset the deadlock avoidance agent and reset the environment
+        :param env: RailEnv object
+        '''
         self.env = env
         self.agent_positions = None
         self.shortest_distance_walker = None
@@ -117,18 +136,30 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
                             self.switches[pos].append(dir)
 
     def start_step(self, train):
+        '''
+        Computes for current situation the deadlock avoidance maps and estimates whether agents can walk or the have
+        to stop
+        '''
         self.build_agent_position_map()
         self.generate_shortest_path_agent_walking_maps()
         self.apply_deadlock_avoidance_heuristic(threshold=1.0, opp_agent_threshold_factor=1.0)
 
     def end_step(self, train):
+        '''
+        not used interface method
+        '''
         pass
 
     def get_actions(self):
+        '''
+        not used interface method
+        '''
         pass
 
     def build_agent_position_map(self):
-        # build map with agent positions (only active agents)
+        '''
+        build map with agent positions (only active agents)
+        '''
         self.agent_positions = np.zeros((self.env.height, self.env.width), dtype=int) - 1
         for handle in range(self.env.get_num_agents()):
             agent = self.env.agents[handle]
@@ -137,6 +168,10 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
                     self.agent_positions[agent.position] = handle
 
     def generate_shortest_path_agent_walking_maps(self):
+        '''
+        This methods generates for all agents the shortest walk maps. The method uses the DeadlockAvoidanceShortestDistanceWalker
+        to compute the paths.
+        '''
         self.shortest_distance_walker = DeadlockAvoidanceShortestDistanceWalker(self.env,
                                                                                 self.agent_positions,
                                                                                 self.switches)
@@ -145,21 +180,54 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
             if agent.status <= RailAgentStatus.ACTIVE:
                 self.shortest_distance_walker.walk_to_target(handle)
 
-    def apply_deadlock_avoidance_heuristic(self, threshold, opp_agent_threshold_factor=1.0):
+    def get_number_off_free_cells_on_agents_path(self, handle, agents_path_map):
+        '''
+        This method caluclates for a given agent the number of free cells. The number of free cell gets extracted by
+        the method calculate_map_differences
+
+        :param handle:
+        :param agents_path_map:
+        :return: number of free cells
+        '''
+        shortest_distance_agent_map, full_shortest_distance_agent_map = self.shortest_distance_walker.getData()
+        opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
+        return self.calculate_map_differences(agents_path_map,
+                                              opp_agents,
+                                              full_shortest_distance_agent_map)
+
+    def apply_deadlock_avoidance_heuristic_threshold(self, min_value, opp_agents, threshold,
+                                                     opp_agent_threshold_factor):
+        '''
+        This method estimates whether an agent can move or it has to stop to avoid deadlock(s)
+
+        :param min_value: number of free cell : see get_number_off_free_cells_on_agents_path
+        :param opp_agents: an array of opposite traveling agents
+        :param threshold: minimal number of free cells (min_value)
+        :param opp_agent_threshold_factor: occupation ration for number of opp_agents
+        :return: [true/false]
+        '''
+        return (min_value > (threshold + opp_agent_threshold_factor * len(opp_agents)))
+
+    def apply_deadlock_avoidance_heuristic(self, threshold, opp_agent_threshold_factor=2.0):
+        '''
+        This method puts for each agent a flag, whether it can walk or has to stop (see: self.agent_can_move) and
+        stores the min_value in a global dict (self.agent_can_move_value)
+
+        :param threshold: minimal number of free cells (min_value)
+        :param opp_agent_threshold_factor: occupation ration for number of opp_agents
+        '''
         self.agent_can_move = {}
         shortest_distance_agent_map, full_shortest_distance_agent_map = self.shortest_distance_walker.getData()
         for handle in range(self.env.get_num_agents()):
             agent = self.env.agents[handle]
             if agent.status < RailAgentStatus.DONE:
+                min_value = self.get_number_off_free_cells_on_agents_path(handle, shortest_distance_agent_map[handle])
+                self.agent_can_move_value.update({handle: min_value})
                 opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
-                min_value = self.calculateMapDifferences(shortest_distance_agent_map[handle],
-                                                         opp_agents,
-                                                         full_shortest_distance_agent_map)
-
-                if min_value > (threshold + opp_agent_threshold_factor * len(opp_agents)):
+                if self.apply_deadlock_avoidance_heuristic_threshold(min_value, opp_agents, threshold,
+                                                                     opp_agent_threshold_factor):
                     next_position, next_direction, action, _ = self.shortest_distance_walker.walk_one_step(handle)
                     self.agent_can_move.update({handle: [next_position[0], next_position[1], next_direction, action]})
-                self.agent_can_move_value.update({handle: min_value})
 
         if self.show_debug_plot:
             a = np.floor(np.sqrt(self.env.get_num_agents()))
@@ -170,10 +238,20 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
             plt.show(block=False)
             plt.pause(0.01)
 
-    def calculateMapDifferences(self,
-                                my_shortest_walking_path,
-                                opp_agents,
-                                full_shortest_distance_agent_map):
+    def calculate_map_differences(self,
+                                  my_shortest_walking_path,
+                                  opp_agents,
+                                  full_shortest_distance_agent_map):
+        '''
+        This methods computes a given path the number of free cells. A cell is free if it is part of the agents
+        walking path and if no opposite traveling agents requires this cell.
+
+        :param my_shortest_walking_path: map of cells where the agents walks on (1 if the cell is part of the path
+        otherwise 0)
+        :param opp_agents: array of handles of opposite agents
+        :param full_shortest_distance_agent_map: all path maps
+        :return: minimal number of free cells
+        '''
         agent_positions_map = (self.agent_positions > -1).astype(int)
         min_value = np.inf
         for opp_a in opp_agents:
@@ -183,7 +261,13 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         return min_value
 
     def save(self, filename):
+        '''
+        not used interface method
+        '''
         pass
 
     def load(self, filename):
+        '''
+        not used interface method
+        '''
         pass
