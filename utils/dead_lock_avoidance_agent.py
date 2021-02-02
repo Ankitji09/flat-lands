@@ -35,8 +35,8 @@ class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
                                                      self.env.width),
                                                     dtype=int) - 1
 
-        # shortest_distance_agent_map is represented as grid with 1 when the cell is part of the shortest path,
-        # 0 otherwise. No cell where skipped.
+        # shortest_distance_agent_map is represented as grid with one when the cell is part of the shortest path,
+        # zero otherwise. No cell where skipped.
         self.full_shortest_distance_agent_map = np.zeros((self.env.get_num_agents(),
                                                           self.env.height,
                                                           self.env.width),
