@@ -119,7 +119,7 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
     def start_step(self, train):
         self.build_agent_position_map()
         self.generate_shortest_path_agent_walking_maps()
-        self.apply_deadlock_avoidance_heuristic(threshold=3, opp_agent_threshold_factor=2.0)
+        self.apply_deadlock_avoidance_heuristic(threshold=1, opp_agent_threshold_factor=1.0)
 
     def end_step(self, train):
         pass
