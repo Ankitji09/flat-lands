@@ -25,8 +25,11 @@ class DeadlockAvoidanceObservation(DummyObservationBuilder):
 
 
 class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
-    def __init__(self, env: RailEnv, agent_positions, switches):
+    def __init__(self, env: RailEnv, agent_positions, switches, stop_walking_when_opposite_agent_encountered=False):
         super().__init__(env)
+
+        self.stop_walking_when_opposite_agent_encountered = stop_walking_when_opposite_agent_encountered
+
         # shortest_distance_agent_map is represented as grid with 1 when the cell is part of the shortest path,
         # 0 otherwise. It contains all cells on the along the shortest path except switch cells and all cell after
         # the walker encounters an opposite agent - this means it's a sub path which is opposite agent free
@@ -52,6 +55,7 @@ class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
         return self.shortest_distance_agent_map, self.full_shortest_distance_agent_map
 
     def callback(self, handle, agent, position, direction, action, possible_transitions):
+        ret_value = True
         opp_a = self.agent_positions[position]
         if opp_a != -1 and opp_a != handle:
             if self.env.agents[opp_a].direction != direction:
@@ -69,7 +73,12 @@ class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
         if len(self.opp_agent_map.get(handle, [])) == 0:
             if self.switches.get(position, None) is None:
                 self.shortest_distance_agent_map[(handle, position[0], position[1])] = 1
+        else:
+            if self.stop_walking_when_opposite_agent_encountered:
+                ret_value = False
+                
         self.full_shortest_distance_agent_map[(handle, position[0], position[1])] = 1
+        return ret_value
 
 
 class DeadLockAvoidanceAgent(HeuristicPolicy):

@@ -40,7 +40,7 @@ class ShortestDistanceWalker:
         return np.argmin(min_distances)
 
     def callback(self, handle, agent, position, direction, action, possible_transitions):
-        pass
+        return True
 
     def get_agent_position_and_direction(self, handle):
         agent = self.env.agents[handle]
@@ -65,11 +65,12 @@ class ShortestDistanceWalker:
             position, direction, dist, action, possible_transitions = self.walk(handle, position, direction)
             if position is None:
                 break
-            self.callback(handle, agent, position, direction, action, possible_transitions)
+            if not self.callback(handle, agent, position, direction, action, possible_transitions):
+                break
             step += 1
 
     def callback_one_step(self, handle, agent, position, direction, action, possible_transitions):
-        pass
+        return True
 
     def walk_one_step(self, handle):
         agent = self.env.agents[handle]
@@ -83,5 +84,7 @@ class ShortestDistanceWalker:
             new_position, new_direction, dist, action, possible_transitions = self.walk(handle, position, direction)
             if new_position is None:
                 return position, direction, RailEnvActions.STOP_MOVING, possible_transitions
-            self.callback_one_step(handle, agent, new_position, new_direction, action, possible_transitions)
+            if not self.callback_one_step(handle, agent, new_position, new_direction, action, possible_transitions):
+                pass
+
         return new_position, new_direction, action, possible_transitions
