@@ -9,7 +9,7 @@ from pprint import pprint
 
 import numpy as np
 import psutil
-from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
+from flatland.envs.malfunction_generators import MalfunctionParameters, ParamMalfunctionGen
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnv, RailEnvActions
@@ -19,7 +19,7 @@ from flatland.utils.rendertools import RenderTool
 from torch.utils.tensorboard import SummaryWriter
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
-from reinforcement_learning.deadlockavoidance_with_decision_agent import DeadLockAvoidanceWithDecisionAgent
+from reinforcement_learning.decision_point_agent import DecisionPointAgent
 from reinforcement_learning.multi_decision_agent import MultiDecisionAgent
 from reinforcement_learning.ppo_agent import PPOPolicy
 from utils.agent_action_config import get_flatland_full_action_size, get_action_size, map_actions, map_action, \
@@ -75,7 +75,7 @@ def create_rail_env(env_params, tree_observation):
         ),
         schedule_generator=sparse_schedule_generator(),
         number_of_agents=n_agents,
-        malfunction_generator_and_process_data=malfunction_from_params(malfunction_parameters),
+        malfunction_generator=ParamMalfunctionGen(malfunction_parameters),
         obs_builder_object=tree_observation,
         random_seed=seed
     )
@@ -182,10 +182,9 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
     elif train_params.policy == "DeadLockAvoidance":
         policy = DeadLockAvoidanceAgent(train_env, get_action_size(), enable_eps=False)
-    elif train_params.policy == "DeadLockAvoidanceWithDecision":
-        # inter_policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
+    elif train_params.policy == "DecisionPointAgent":
         inter_policy = DDDQNPolicy(state_size, get_action_size(), train_params)
-        policy = DeadLockAvoidanceWithDecisionAgent(train_env, state_size, get_action_size(), inter_policy)
+        policy = DecisionPointAgent(train_env, state_size, get_action_size(), inter_policy)
     elif train_params.policy == "MultiDecision":
         policy = MultiDecisionAgent(state_size, get_action_size(), train_params)
     else:
@@ -545,7 +544,7 @@ if __name__ == "__main__":
                         action='store_true')
     parser.add_argument("--max_depth", help="max depth", default=2, type=int)
     parser.add_argument("--policy",
-                        help="policy name [DDDQN, PPO, DeadLockAvoidance, DeadLockAvoidanceWithDecision, MultiDecision]",
+                        help="policy name [DDDQN, PPO, DeadLockAvoidance, DeadLockAvoidance, MultiDecision]",
                         default="DeadLockAvoidance")
     parser.add_argument("--action_size", help="define the action size [reduced,full]", default="full", type=str)
 
