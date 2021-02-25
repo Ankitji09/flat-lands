@@ -184,6 +184,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         policy = DeadLockAvoidanceAgent(train_env, get_action_size(), enable_eps=False)
     elif train_params.policy == "DecisionPointAgent":
         inter_policy = DDDQNPolicy(state_size, get_action_size(), train_params)
+        # inter_policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
         policy = DecisionPointAgent(train_env, state_size, get_action_size(), inter_policy)
     elif train_params.policy == "MultiDecision":
         policy = MultiDecisionAgent(state_size, get_action_size(), train_params)
@@ -390,7 +391,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
             ), end=" ")
 
         # Evaluate policy and log results at some interval
-        if episode_idx % checkpoint_interval == 0 and n_eval_episodes > 0:
+        if episode_idx % checkpoint_interval == 0 and n_eval_episodes > 0 and episode_idx > 0:
             scores, completions, nb_steps_eval = eval_policy(eval_env,
                                                              tree_observation,
                                                              policy,
@@ -544,7 +545,7 @@ if __name__ == "__main__":
                         action='store_true')
     parser.add_argument("--max_depth", help="max depth", default=2, type=int)
     parser.add_argument("--policy",
-                        help="policy name [DDDQN, PPO, DeadLockAvoidance, DeadLockAvoidance, MultiDecision]",
+                        help="policy name [DDDQN, PPO, DecisionPointAgent, DeadLockAvoidance, MultiDecision]",
                         default="DeadLockAvoidance")
     parser.add_argument("--action_size", help="define the action size [reduced,full]", default="full", type=str)
 
