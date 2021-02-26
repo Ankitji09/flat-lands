@@ -113,7 +113,8 @@ class FastTreeObs(ObservationBuilder):
                     # agent walking on same track
                     has_same_agent = 1
                     # !NOT stop exploring!
-                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
+                    # return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist,
+                    # free_cell_value
 
             # agents_on_switch == TRUE -> Current cell is a switch where the agent can decide (branch) in exploration
             # agent_near_to_switch == TRUE -> One cell before the switch, where the agent can decide
