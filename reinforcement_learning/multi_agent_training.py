@@ -308,7 +308,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                 env_renderer.render_env(
                     show=True,
                     frames=False,
-                    show_observations=False,
+                    show_observations=True,
                     show_predictions=False
                 )
 

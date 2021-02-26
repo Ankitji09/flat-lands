@@ -68,7 +68,7 @@ class FastTreeObs(ObservationBuilder):
         self.debug_render_list = []
         self.debug_render_path_list = []
 
-    def _explore(self, handle, new_position, new_direction, distance_map, depth=0):
+    def _explore(self, handle, new_position, new_direction, distance_map, depth=0, switch_group_depth=0):
         has_opp_agent = 0
         has_same_agent = 0
         has_target = 0
@@ -88,7 +88,7 @@ class FastTreeObs(ObservationBuilder):
             local_shortest_distance_agent_map[handle])
 
         # stop exploring (max_depth reached)
-        if depth >= self.max_depth:
+        if depth >= self.max_depth * 1022:
             return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
         # max_explore_steps = 100 -> just to ensure that the exploration ends
@@ -123,7 +123,9 @@ class FastTreeObs(ObservationBuilder):
             if agents_near_to_switch:
                 # The exploration was walking on a path where the agent can not decide
                 # Best option would be MOVE_FORWARD -> Skip exploring - just walking
-                return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
+                switch_group_depth = switch_group_depth + 1
+                if switch_group_depth >= self.max_depth:
+                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
             if self.env.agents[handle].target in self.agents_target:
                 has_opp_target = 1
@@ -139,18 +141,38 @@ class FastTreeObs(ObservationBuilder):
                 if possible_transitions_nonzero == 1:
                     orientation = fast_argmax(possible_transitions)
 
+                # Only select a path which is connect with the target
+                # and select randomly one path if there are more possible path to take
+                prob = [np.inf]*4
+                for dir_loop, branch_direction in enumerate(
+                        [(orientation + dir_loop) % 4 for dir_loop in range(-1, 3)]):
+                    if possible_transitions[dir_loop] == 1:
+                        newp = get_new_position(new_position, dir_loop)
+                        dist = distance_map[handle, newp[0], newp[1], dir_loop]
+                        if dist == np.inf:
+                            prob[dir_loop] = np.inf
+                        else:
+                            prob[dir_loop] = dist
+                #if np.sum(prob) == 0:
+                selector = np.argmin(prob)
+                if prob[selector] == np.inf:
+                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
+
+                # selector = np.random.choice(len(possible_transitions), 1, p=prob / np.sum(prob))
                 for dir_loop, branch_direction in enumerate(
                         [(orientation + dir_loop) % 4 for dir_loop in range(-1, 3)]):
                     # branch the exploration path and aggregate the found information
                     # --- OPEN RESEARCH QUESTION ---> is this good or shall we use full detailed information as
                     # we did in the TreeObservation (FLATLAND) ?
-                    if possible_transitions[dir_loop] == 1:
+
+                    if possible_transitions[dir_loop] == 1 and selector == dir_loop:
                         hoa, hsa, ht, hot, v, m_dist, free_cv = self._explore(handle,
                                                                               get_new_position(new_position, dir_loop),
                                                                               dir_loop,
                                                                               distance_map,
-                                                                              depth + 1)
-                        visited.append(v)
+                                                                              depth + 1,
+                                                                              switch_group_depth)
+                        visited = visited + v
                         has_opp_agent = max(hoa, has_opp_agent)
                         has_same_agent = max(hsa, has_same_agent)
                         has_target = max(has_target, ht)
@@ -245,10 +267,10 @@ class FastTreeObs(ObservationBuilder):
                                         new_position,
                                         branch_direction,
                                         distance_map)
-                    visited.append(v)
+                    visited = visited + v
 
-                    if not (np.math.isinf(min_dist) and np.math.isinf(current_cell_dist)):
-                        observation[11 + dir_loop] = int(min_dist < current_cell_dist)
+                    if not (np.math.isinf(min_dist)):
+                        observation[11 + dir_loop] = min_dist
                     observation[15 + dir_loop] = has_opp_agent
                     observation[19 + dir_loop] = has_same_agent
                     observation[23 + dir_loop] = has_target
