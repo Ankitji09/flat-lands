@@ -88,7 +88,8 @@ class FastTreeObs(ObservationBuilder):
             local_shortest_distance_agent_map[handle])
 
         # stop exploring (max_depth reached)
-        if depth >= self.max_depth * 1022:
+        if depth >= 100:
+            # -> should never enter into this code part
             return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
         # max_explore_steps = 100 -> just to ensure that the exploration ends
