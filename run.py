@@ -102,7 +102,7 @@ if True:
     # http://gitlab.aicrowd.com/adrian_egli/neurips2020-flatland-starter-kit/issues/54
     # Sat, 23 Jan 2021 14:31:50
     set_action_size_reduced()
-    load_policy = "DeadLockAvoidance"
+    load_policy = "DeadLockAvoidance" # 21.037702071623333
     checkpoint = None
     EPSILON = 0.0
 
