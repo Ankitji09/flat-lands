@@ -86,5 +86,6 @@ class ShortestDistanceWalker:
                 return position, direction, RailEnvActions.STOP_MOVING, possible_transitions
             if not self.callback_one_step(handle, agent, new_position, new_direction, action, possible_transitions):
                 pass
-
-        return new_position, new_direction, action, possible_transitions
+            return new_position, new_direction, action, possible_transitions
+        else:
+            return position, direction, RailEnvActions.STOP_MOVING, possible_transitions
