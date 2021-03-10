@@ -114,11 +114,14 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
                 return np.random.choice(np.arange(self.action_size))
 
         # agent = self.env.agents[state[0]]
+        _, action = self.check_agent_can_move(handle)
+        return map_rail_env_action(action)
+
+    def check_agent_can_move(self,handle):
         check = self.agent_can_move.get(handle, None)
-        act = RailEnvActions.STOP_MOVING
-        if check is not None:
-            act = check[3]
-        return map_rail_env_action(act)
+        if check is None:
+            return False, RailEnvActions.STOP_MOVING
+        return True, check[3]
 
     def get_agent_can_move_value(self, handle):
         '''
