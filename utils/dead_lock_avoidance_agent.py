@@ -76,7 +76,7 @@ class DeadlockAvoidanceShortestDistanceWalker(ShortestDistanceWalker):
         else:
             if self.stop_walking_when_opposite_agent_encountered:
                 ret_value = False
-                
+
         self.full_shortest_distance_agent_map[(handle, position[0], position[1])] = 1
         return ret_value
 
@@ -117,7 +117,7 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         _, action = self.check_agent_can_move(handle)
         return map_rail_env_action(action)
 
-    def check_agent_can_move(self,handle):
+    def check_agent_can_move(self, handle):
         check = self.agent_can_move.get(handle, None)
         if check is None:
             return False, RailEnvActions.STOP_MOVING
@@ -197,7 +197,7 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
             if agent.status <= RailAgentStatus.ACTIVE:
                 self.shortest_distance_walker.walk_to_target(handle)
 
-    def get_number_off_free_cells_on_agents_path(self, handle, agents_path_map):
+    def get_number_off_free_cells_on_agents_path(self, handle, agents_path_map, opp_agents):
         '''
         This method caluclates for a given agent the number of free cells. The number of free cell gets extracted by
         the method calculate_map_differences
@@ -207,7 +207,6 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         :return: number of free cells
         '''
         _, full_shortest_distance_agent_map = self.shortest_distance_walker.getData()
-        opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
         return self.calculate_map_differences(agents_path_map,
                                               opp_agents,
                                               full_shortest_distance_agent_map)
@@ -238,10 +237,15 @@ class DeadLockAvoidanceAgent(HeuristicPolicy):
         for handle in range(self.env.get_num_agents()):
             agent = self.env.agents[handle]
             if agent.status < RailAgentStatus.DONE:
-                min_value = self.get_number_off_free_cells_on_agents_path(handle, shortest_distance_agent_map[handle])
+                opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
+                min_value = self.get_number_off_free_cells_on_agents_path(handle,
+                                                                          shortest_distance_agent_map[handle],
+                                                                          opp_agents)
                 self.agent_can_move_value.update({handle: min_value})
                 opp_agents = self.shortest_distance_walker.opp_agent_map.get(handle, [])
-                if self.apply_deadlock_avoidance_heuristic_threshold(min_value, opp_agents, threshold,
+                if self.apply_deadlock_avoidance_heuristic_threshold(min_value,
+                                                                     opp_agents,
+                                                                     threshold,
                                                                      opp_agent_threshold_factor):
                     next_position, next_direction, action, _ = self.shortest_distance_walker.walk_one_step(handle)
                     self.agent_can_move.update({handle: [next_position[0], next_position[1], next_direction, action]})
