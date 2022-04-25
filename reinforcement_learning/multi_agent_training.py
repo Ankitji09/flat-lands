@@ -9,7 +9,7 @@ from pprint import pprint
 
 import numpy as np
 import psutil
-from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
+from flatland.envs.malfunction_generators import MalfunctionParameters, ParamMalfunctionGen
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnv, RailEnvActions
@@ -19,7 +19,7 @@ from flatland.utils.rendertools import RenderTool
 from torch.utils.tensorboard import SummaryWriter
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
-from reinforcement_learning.deadlockavoidance_with_decision_agent import DeadLockAvoidanceWithDecisionAgent
+from reinforcement_learning.decision_point_agent import DecisionPointAgent
 from reinforcement_learning.multi_decision_agent import MultiDecisionAgent
 from reinforcement_learning.ppo_agent import PPOPolicy
 from utils.agent_action_config import get_flatland_full_action_size, get_action_size, map_actions, map_action, \
@@ -75,7 +75,7 @@ def create_rail_env(env_params, tree_observation):
         ),
         schedule_generator=sparse_schedule_generator(),
         number_of_agents=n_agents,
-        malfunction_generator_and_process_data=malfunction_from_params(malfunction_parameters),
+        malfunction_generator=ParamMalfunctionGen(malfunction_parameters),
         obs_builder_object=tree_observation,
         random_seed=seed
     )
@@ -182,10 +182,10 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
     elif train_params.policy == "DeadLockAvoidance":
         policy = DeadLockAvoidanceAgent(train_env, get_action_size(), enable_eps=False)
-    elif train_params.policy == "DeadLockAvoidanceWithDecision":
-        # inter_policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
+    elif train_params.policy == "DecisionPointAgent":
         inter_policy = DDDQNPolicy(state_size, get_action_size(), train_params)
-        policy = DeadLockAvoidanceWithDecisionAgent(train_env, state_size, get_action_size(), inter_policy)
+        # inter_policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
+        policy = DecisionPointAgent(train_env, state_size, get_action_size(), inter_policy)
     elif train_params.policy == "MultiDecision":
         policy = MultiDecisionAgent(state_size, get_action_size(), train_params)
     else:
@@ -244,10 +244,12 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
         reset_timer.start()
         if train_params.n_agent_fixed:
             number_of_agents = n_agents
-            train_env_params.n_agents = n_agents
         else:
             number_of_agents = int(min(n_agents, 1 + np.floor(episode_idx / 200)))
+        if train_params.n_agent_iterate:
             train_env_params.n_agents = episode_idx % number_of_agents + 1
+        else:
+            train_env_params.n_agents = number_of_agents
 
         train_env = create_rail_env(train_env_params, tree_observation)
         obs, info = train_env.reset(regenerate_rail=True, regenerate_schedule=True)
@@ -308,7 +310,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
                 env_renderer.render_env(
                     show=True,
                     frames=False,
-                    show_observations=False,
+                    show_observations=True,
                     show_predictions=False
                 )
 
@@ -391,7 +393,7 @@ def train_agent(train_params, train_env_params, eval_env_params, obs_params):
             ), end=" ")
 
         # Evaluate policy and log results at some interval
-        if episode_idx % checkpoint_interval == 0 and n_eval_episodes > 0:
+        if episode_idx % checkpoint_interval == 0 and n_eval_episodes > 0 and episode_idx > 0:
             scores, completions, nb_steps_eval = eval_policy(eval_env,
                                                              tree_observation,
                                                              policy,
@@ -517,6 +519,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-n", "--n_episodes", help="number of episodes to run", default=5000, type=int)
     parser.add_argument("--n_agent_fixed", help="hold the number of agent fixed", action='store_true')
+    parser.add_argument("--n_agent_iterate", help="iterate the number of agent fixed", action='store_true')
     parser.add_argument("-t", "--training_env_config", help="training config id (eg 0 for Test_0)", default=1,
                         type=int)
     parser.add_argument("-e", "--evaluation_env_config", help="evaluation config id (eg 0 for Test_0)", default=1,
@@ -545,7 +548,7 @@ if __name__ == "__main__":
                         action='store_true')
     parser.add_argument("--max_depth", help="max depth", default=2, type=int)
     parser.add_argument("--policy",
-                        help="policy name [DDDQN, PPO, DeadLockAvoidance, DeadLockAvoidanceWithDecision, MultiDecision]",
+                        help="policy name [DDDQN, PPO, DecisionPointAgent, DeadLockAvoidance, MultiDecision]",
                         default="DeadLockAvoidance")
     parser.add_argument("--action_size", help="define the action size [reduced,full]", default="full", type=str)
 
@@ -553,7 +556,7 @@ if __name__ == "__main__":
     env_params = [
         {
             # Test_0
-            "n_agents": 1,
+            "n_agents": 2,
             "x_dim": 25,
             "y_dim": 25,
             "n_cities": 2,

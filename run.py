@@ -34,7 +34,7 @@ from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.evaluators.client import TimeoutException
 
 from reinforcement_learning.dddqn_policy import DDDQNPolicy
-from reinforcement_learning.deadlockavoidance_with_decision_agent import DeadLockAvoidanceWithDecisionAgent
+from reinforcement_learning.decision_point_agent import DecisionPointAgent
 from reinforcement_learning.multi_decision_agent import MultiDecisionAgent
 from reinforcement_learning.ppo_agent import PPOPolicy
 from utils.agent_action_config import get_action_size, map_actions, set_action_size_reduced, set_action_size_full
@@ -93,7 +93,7 @@ if True:
     checkpoint = "./checkpoints/210122165109-5000.pth"  # 17.993750197899438
     EPSILON = 0.0
 
-if False:
+if True:
     # -------------------------------------------------------------------------------------------------------
     # !! This is not a RL solution !!!!
     # -------------------------------------------------------------------------------------------------------
@@ -102,7 +102,7 @@ if False:
     # http://gitlab.aicrowd.com/adrian_egli/neurips2020-flatland-starter-kit/issues/54
     # Sat, 23 Jan 2021 14:31:50
     set_action_size_reduced()
-    load_policy = "DeadLockAvoidance"
+    load_policy = "DeadLockAvoidance" # 21.037702071623333
     checkpoint = None
     EPSILON = 0.0
 
@@ -187,10 +187,9 @@ while True:
         policy = PPOPolicy(state_size, get_action_size())
     elif load_policy == "DeadLockAvoidance":
         policy = DeadLockAvoidanceAgent(local_env, get_action_size(), enable_eps=False)
-    elif load_policy == "DeadLockAvoidanceWithDecision":
-        # inter_policy = PPOPolicy(state_size, get_action_size(), use_replay_buffer=False, in_parameters=train_params)
+    elif load_policy == "DecisionPointAgent":
         inter_policy = DDDQNPolicy(state_size, get_action_size(), Namespace(**{'use_gpu': False}), evaluation_mode=True)
-        policy = DeadLockAvoidanceWithDecisionAgent(local_env, state_size, get_action_size(), inter_policy)
+        policy = DecisionPointAgent(local_env, state_size, get_action_size(), inter_policy)
     elif load_policy == "MultiDecision":
         policy = MultiDecisionAgent(state_size, get_action_size(), Namespace(**{'use_gpu': False}))
     else:

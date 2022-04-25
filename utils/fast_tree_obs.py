@@ -4,11 +4,11 @@ import numpy as np
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
-from flatland.envs.rail_env import fast_count_nonzero, fast_argmax, RailEnvActions
+from flatland.envs.rail_env import fast_count_nonzero, fast_argmax
 
 from utils.agent_action_config import get_flatland_full_action_size
 from utils.agent_can_choose_helper import AgentCanChooseHelper
-from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent
+from utils.dead_lock_avoidance_agent import DeadLockAvoidanceAgent, DeadlockAvoidanceShortestDistanceWalker
 from utils.deadlock_check import get_agent_positions, get_agent_targets
 
 """
@@ -68,7 +68,7 @@ class FastTreeObs(ObservationBuilder):
         self.debug_render_list = []
         self.debug_render_path_list = []
 
-    def _explore(self, handle, new_position, new_direction, distance_map, depth=0):
+    def _explore(self, handle, new_position, new_direction, distance_map, depth=0, switch_group_depth=0):
         has_opp_agent = 0
         has_same_agent = 0
         has_target = 0
@@ -76,9 +76,21 @@ class FastTreeObs(ObservationBuilder):
         visited = []
         min_dist = distance_map[handle, new_position[0], new_position[1], new_direction]
 
+        # extract for branch the min_value
+        local_shortest_distance_walker = DeadlockAvoidanceShortestDistanceWalker(self.env,
+                                                                                 self.agent_positions,
+                                                                                 self.agent_can_choose_helper.switches,
+                                                                                 stop_walking_when_opposite_agent_encountered=True)
+        local_shortest_distance_walker.walk_to_target(handle, new_position, new_direction, max_step=50)
+        local_shortest_distance_agent_map, local_full_shortest_distance_agent_map = local_shortest_distance_walker.getData()
+        free_cell_value = self.dead_lock_avoidance_agent.get_number_off_free_cells_on_agents_path(
+            handle,
+            local_shortest_distance_agent_map[handle])
+
         # stop exploring (max_depth reached)
-        if depth >= self.max_depth:
-            return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+        if depth >= 100:
+            # -> should never enter into this code part
+            return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
         # max_explore_steps = 100 -> just to ensure that the exploration ends
         cnt = 0
@@ -91,7 +103,7 @@ class FastTreeObs(ObservationBuilder):
                 if self.env.agents[opp_a].direction != new_direction:
                     # opp agent found -> stop exploring. This would be a strong signal.
                     has_opp_agent = 1
-                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
                 else:
                     # same agent found
                     # the agent can follow the agent, because this agent is still moving ahead and there shouldn't
@@ -101,7 +113,8 @@ class FastTreeObs(ObservationBuilder):
                     # agent walking on same track
                     has_same_agent = 1
                     # !NOT stop exploring!
-                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+                    # return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist,
+                    # free_cell_value
 
             # agents_on_switch == TRUE -> Current cell is a switch where the agent can decide (branch) in exploration
             # agent_near_to_switch == TRUE -> One cell before the switch, where the agent can decide
@@ -112,14 +125,16 @@ class FastTreeObs(ObservationBuilder):
             if agents_near_to_switch:
                 # The exploration was walking on a path where the agent can not decide
                 # Best option would be MOVE_FORWARD -> Skip exploring - just walking
-                return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+                switch_group_depth = switch_group_depth + 1
+                if switch_group_depth >= self.max_depth:
+                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
             if self.env.agents[handle].target in self.agents_target:
                 has_opp_target = 1
 
             if self.env.agents[handle].target == new_position:
                 has_target = 1
-                return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+                return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
             possible_transitions = self.env.rail.get_transitions(*new_position, new_direction)
             if agents_on_switch:
@@ -128,31 +143,52 @@ class FastTreeObs(ObservationBuilder):
                 if possible_transitions_nonzero == 1:
                     orientation = fast_argmax(possible_transitions)
 
+                # Only select a path which is connect with the target
+                # and select randomly one path if there are more possible path to take
+                prob = [np.inf]*4
+                for dir_loop, branch_direction in enumerate(
+                        [(orientation + dir_loop) % 4 for dir_loop in range(-1, 3)]):
+                    if possible_transitions[dir_loop] == 1:
+                        newp = get_new_position(new_position, dir_loop)
+                        dist = distance_map[handle, newp[0], newp[1], dir_loop]
+                        if dist == np.inf:
+                            prob[dir_loop] = np.inf
+                        else:
+                            prob[dir_loop] = dist
+                #if np.sum(prob) == 0:
+                selector = np.argmin(prob)
+                if prob[selector] == np.inf:
+                    return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
+
+                # selector = np.random.choice(len(possible_transitions), 1, p=prob / np.sum(prob))
                 for dir_loop, branch_direction in enumerate(
                         [(orientation + dir_loop) % 4 for dir_loop in range(-1, 3)]):
                     # branch the exploration path and aggregate the found information
                     # --- OPEN RESEARCH QUESTION ---> is this good or shall we use full detailed information as
                     # we did in the TreeObservation (FLATLAND) ?
-                    if possible_transitions[dir_loop] == 1:
-                        hoa, hsa, ht, hot, v, m_dist = self._explore(handle,
-                                                                     get_new_position(new_position, dir_loop),
-                                                                     dir_loop,
-                                                                     distance_map,
-                                                                     depth + 1)
-                        visited.append(v)
+
+                    if possible_transitions[dir_loop] == 1 and selector == dir_loop:
+                        hoa, hsa, ht, hot, v, m_dist, free_cv = self._explore(handle,
+                                                                              get_new_position(new_position, dir_loop),
+                                                                              dir_loop,
+                                                                              distance_map,
+                                                                              depth + 1,
+                                                                              switch_group_depth)
+                        visited = visited + v
                         has_opp_agent = max(hoa, has_opp_agent)
                         has_same_agent = max(hsa, has_same_agent)
                         has_target = max(has_target, ht)
                         has_opp_target = max(has_opp_target, hot)
                         min_dist = min(min_dist, m_dist)
-                return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+                        free_cell_value = min(free_cv, free_cell_value)
+                return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
             else:
                 new_direction = fast_argmax(possible_transitions)
                 new_position = get_new_position(new_position, new_direction)
 
             min_dist = min(min_dist, distance_map[handle, new_position[0], new_position[1], new_direction])
 
-        return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist
+        return has_opp_agent, has_same_agent, has_target, has_opp_target, visited, min_dist, free_cell_value
 
     def get_many(self, handles: Optional[List[int]] = None):
         self.dead_lock_avoidance_agent.reset(self.env)
@@ -228,18 +264,20 @@ class FastTreeObs(ObservationBuilder):
                     if not (np.math.isinf(new_cell_dist) and np.math.isinf(current_cell_dist)):
                         observation[dir_loop] = int(new_cell_dist < current_cell_dist)
 
-                    has_opp_agent, has_same_agent, has_target, has_opp_target, v, min_dist = self._explore(handle,
-                                                                                                           new_position,
-                                                                                                           branch_direction,
-                                                                                                           distance_map)
-                    visited.append(v)
+                    has_opp_agent, has_same_agent, has_target, has_opp_target, v, min_dist, free_cell_value \
+                        = self._explore(handle,
+                                        new_position,
+                                        branch_direction,
+                                        distance_map)
+                    visited = visited + v
 
-                    if not (np.math.isinf(min_dist) and np.math.isinf(current_cell_dist)):
-                        observation[11 + dir_loop] = int(min_dist < current_cell_dist)
+                    if not (np.math.isinf(min_dist)):
+                        observation[11 + dir_loop] = min_dist
                     observation[15 + dir_loop] = has_opp_agent
                     observation[19 + dir_loop] = has_same_agent
                     observation[23 + dir_loop] = has_target
                     observation[27 + dir_loop] = has_opp_target
+                    observation[30 + dir_loop] = free_cell_value
 
             agents_on_switch, \
             agents_near_to_switch, \
@@ -252,12 +290,7 @@ class FastTreeObs(ObservationBuilder):
             observation[9] = int(agents_near_to_switch)
             observation[10] = int(agents_near_to_switch_all)
 
-            action = self.dead_lock_avoidance_agent.act(handle, None, eps=0)
-            observation[30] = action == RailEnvActions.DO_NOTHING
-            observation[31] = action == RailEnvActions.MOVE_LEFT
-            observation[32] = action == RailEnvActions.MOVE_FORWARD
-            observation[33] = action == RailEnvActions.MOVE_RIGHT
-            observation[34] = action == RailEnvActions.STOP_MOVING
+            observation[34] = self.dead_lock_avoidance_agent.get_agent_can_move_value(handle)
 
         self.env.dev_obs_dict.update({handle: visited})
 
